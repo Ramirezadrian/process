@@ -4,8 +4,36 @@ const mongoose = require('mongoose')
 const passport = require('passport')
 const { Strategy: LocalStrategy } = require('passport-local')
 const flash = require('connect-flash')
+const dotenv = require('dotenv')
+const parseArgs = require('minimist')
+const { fork } = require('child_process')
 
-mongoose.connect('mongodb://localhost:27017/desafioSesion')
+
+let visitas = 0
+
+dotenv.config()
+
+/* const args = yargs(process.argv.slice(2))
+  .alias({
+    puerto: 'p'
+  })
+  .default({
+    puerto: 8080
+  })
+  .argv */
+
+const options = {
+  default: {
+    port: 8080
+  }
+}
+options.alias = {
+  p: 'port'
+} 
+
+const args = parseArgs(process.argv.slice(2), options) 
+
+mongoose.connect(`mongodb://${process.env.DB_HOST}:${process.env.DB_PORT}/desafioSesion`)
 const User = require('./models/user')
 
 const { createHash, isValidPassword } = require('./utils')
@@ -86,6 +114,18 @@ passport.deserializeUser((id, done) => {
    
 }) 
 
+app.get('/info', (req, res) =>{
+  return res.render('info',{
+    arg: `Argumentos de entrada: ${JSON.stringify(args,null,2)}`,
+    path: `Path de ejecucion: ${process.execPath}`,
+    so: `Nombre de la plataforma: ${process.platform}`,
+    pid: `Process ID: ${process.pid}`,
+    version: `Version de Node: ${process.version}`,
+    carpeta: `Carpeta del proyecto: ${process.cwd()}`,
+    memoria: `Memoria total reservada: ${JSON.stringify(process.memoryUsage(), null, 2)}`
+  })
+})
+
 app.get('/signup', (req, res) => {
   return res.render('signup', {message: req.flash('error')}) //EJS
  
@@ -139,6 +179,36 @@ app.get('/logout', (req, res) => {
     })
 })
 
-const PORT = 8080
+app.get('/visitas', (req, res) =>{
+  return res.end(`Visitas: ${visitas++}`)
+})
 
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`))
+app.get('/api/randoms', (req, res) =>{
+  let cant = Number(req.query.cant)
+ 
+  if(isNaN(cant)){
+    cant = 100000
+    
+    process.send(cant)
+    const numRandoms = fork('../random/random.js')
+    numRandoms.on('mesagge', numeros =>{
+      return res.end(`Me tiro estop: ${numeros}`)
+    })
+  } 
+  else {
+    process.send(cant)
+    const numRandoms = fork('../random/random.js')
+    numRandoms.on('mesagge', numeros =>{
+      return res.end(`Me tiro estop: ${numeros}`)
+    })
+  } 
+})   
+  
+
+  
+
+
+PORT = args.port
+
+app.listen(PORT, process.env.HOST, () => console.log(`Servidor corriendo en http://${process.env.HOST}:${PORT}`))
+
